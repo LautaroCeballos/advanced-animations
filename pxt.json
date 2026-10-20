@@ -1,0 +1,40 @@
+{
+    "name": "pxt-advanced-animations",
+    "version": "0.1.0",
+    "description": "Character animation rules extended with attack triggers, button predicates, and collision events",
+    "dependencies": {
+        "device": "*"
+    },
+    "files": [
+        "main.ts",
+        "README.md",
+        "docs/run-attack.md",
+        "docs/is-attacking.md",
+        "docs/attack-time-remaining.md",
+        "docs/set-action-button.md",
+        "docs/set-overlap-target.md",
+        "docs/on-attack-start.md",
+        "docs/on-attack-end.md",
+        "docs/on-hit.md",
+        "docs/loop-character-animation.md",
+        "docs/run-character-animation.md",
+        "docs/matches-rule.md",
+        "docs/set-character-animations-enabled.md",
+        "docs/set-character-state.md",
+        "docs/clear-character-state.md",
+        "docs/set-controller.md",
+        "docs/lock-facing-direction.md",
+        "docs/unlock-facing-direction.md",
+        "docs/facing-direction.md",
+        "docs/predicate.md",
+        "docs/rule.md"
+    ],
+    "targetVersions": {
+        "target": "1.4.44",
+        "targetId": "arcade"
+    },
+    "supportedTargets": [
+        "arcade"
+    ],
+    "preferredEditor": "tsprj"
+}
