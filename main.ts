@@ -172,9 +172,9 @@ namespace animations {
         protected attackRemaining: number;
         protected attackActive: boolean;
 
-        protected attackStartHandlers: (s: Sprite) => void[];
-        protected attackEndHandlers: (s: Sprite) => void[];
-        protected hitHandlers: (s: Sprite, other: Sprite) => void[];
+        protected attackStartHandlers: ((s: Sprite) => void)[];
+        protected attackEndHandlers: ((s: Sprite) => void)[];
+        protected hitHandlers: ((s: Sprite, other: Sprite) => void)[];
 
         constructor(public sprite: Sprite) {
             this.animations = [];
