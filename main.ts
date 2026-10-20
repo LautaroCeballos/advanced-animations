@@ -8,7 +8,7 @@
  *
  * Bits 0-13 match microsoft/arcade-character-animations
  * exactly so existing rule behavior is preserved. Bits 14+
- * are additions for buttons, attacks and sprite collisions.
+ * are additions for button and action button predicates.
  */
 enum Predicate {
     //% block="not moving"
@@ -51,10 +51,6 @@ enum Predicate {
     Action = 1 << 18,
     //% block="action button just pressed"
     ActionJust = 1 << 19,
-    //% block="attacking"
-    Attacking = 1 << 20,
-    //% block="hitting a sprite"
-    HittingSprite = 1 << 21,
 }
 
 //% color="#7d6282" icon="\uf03d" block="Character+"
@@ -162,20 +158,6 @@ namespace animations {
         protected prevB: boolean;
         protected prevAction: boolean;
 
-        protected overlapTarget: Sprite;
-        protected lastOverlap: boolean;
-
-        protected attackFrames: Image[];
-        protected attackInterval: number;
-        protected attackTimer: number;
-        protected attackFrame: number;
-        protected attackRemaining: number;
-        protected attackActive: boolean;
-
-        protected attackStartHandlers: ((s: Sprite) => void)[];
-        protected attackEndHandlers: ((s: Sprite) => void)[];
-        protected hitHandlers: ((s: Sprite, other: Sprite) => void)[];
-
         constructor(public sprite: Sprite) {
             this.animations = [];
             this.timer = 0;
@@ -190,12 +172,6 @@ namespace animations {
             this.prevA = false;
             this.prevB = false;
             this.prevAction = false;
-            this.lastOverlap = false;
-            this.attackActive = false;
-            this.attackRemaining = 0;
-            this.attackStartHandlers = [];
-            this.attackEndHandlers = [];
-            this.hitHandlers = [];
         }
 
         setFrames(loop: boolean, frames: Image[], interval: number, rule: Rule) {
@@ -270,93 +246,6 @@ namespace animations {
             return flags;
         }
 
-        updateOverlap() {
-            if (!this.overlapTarget || (this.overlapTarget.flags & sprites.Flag.Destroyed)) {
-                this.overlapTarget = undefined;
-                this.lastOverlap = false;
-                return 0;
-            }
-
-            const overlapping = this.sprite.overlapsWith(this.overlapTarget);
-
-            if (overlapping && !this.lastOverlap) {
-                const handlers = this.hitHandlers.slice();
-                for (const handler of handlers) {
-                    handler(this.sprite, this.overlapTarget);
-                }
-            }
-
-            this.lastOverlap = overlapping;
-            return overlapping ? Predicate.HittingSprite : 0;
-        }
-
-        startAttack(frames: Image[], interval: number, duration?: number) {
-            if (!frames || !frames.length) return;
-            if (Number.isNaN(interval) || interval < 5) interval = 5;
-
-            this.attackFrames = frames;
-            this.attackInterval = interval;
-            this.attackTimer = 0;
-            this.attackFrame = 0;
-            this.attackActive = true;
-            // A missing (or non-positive) duration means "play the frames once"
-            this.attackRemaining = duration === undefined || duration === null || duration <= 0 ? -1 : duration;
-
-            this.sprite.setImage(frames[0]);
-
-            const handlers = this.attackStartHandlers.slice();
-            for (const handler of handlers) {
-                handler(this.sprite);
-            }
-        }
-
-        endAttack() {
-            if (!this.attackActive) return;
-
-            this.attackActive = false;
-            this.attackFrames = undefined;
-
-            // Force the rule engine to re-apply its animation next frame so the
-            // sprite resumes moving/idling without any manual state juggling.
-            this.current = undefined;
-            this.frame = 0;
-            this.timer = 0;
-
-            const handlers = this.attackEndHandlers.slice();
-            for (const handler of handlers) {
-                handler(this.sprite);
-            }
-        }
-
-        updateAttack(dt: number) {
-            if (!this.attackActive) return;
-
-            if (this.attackRemaining > 0) {
-                this.attackRemaining -= dt;
-            }
-
-            this.attackTimer += dt;
-            while (this.attackTimer >= this.attackInterval && this.attackActive) {
-                this.attackTimer -= this.attackInterval;
-                this.attackFrame++;
-
-                if (this.attackFrame >= this.attackFrames.length) {
-                    if (this.attackRemaining === -1) {
-                        // Single pass finished
-                        this.endAttack();
-                        return;
-                    }
-                    // Loop the attack frames until the duration elapses
-                    this.attackFrame = 0;
-                }
-                this.sprite.setImage(this.attackFrames[this.attackFrame]);
-            }
-
-            if (this.attackRemaining !== -1 && this.attackRemaining <= 0) {
-                this.endAttack();
-            }
-        }
-
         update(dt: number) {
             let state = 0;
 
@@ -420,13 +309,9 @@ namespace animations {
                 state |= Predicate.HittingWallLeft;
             }
 
-            // Buttons, attacks and collisions are additive: they never clear
-            // movement predicates, so walk/idle rules keep matching.
+            // Button predicates are additive: they never clear movement
+            // predicates, so walk/idle rules keep matching.
             state |= this.updateButtons();
-            state |= this.updateOverlap();
-            if (this.attackActive) {
-                state |= Predicate.Attacking;
-            }
 
             this.lastX = this.sprite.x;
             this.lastY = this.sprite.y;
@@ -474,58 +359,54 @@ namespace animations {
                 }
             }
 
-            this.updateAttack(dt);
-
             const newAnimation = this.pickRule(this.manualFlags || state);
 
-            if (!this.attackActive) {
-                if (newAnimation !== this.current) {
-                    this.frame = 0;
-                    this.timer = 0;
+            if (newAnimation !== this.current) {
+                this.frame = 0;
+                this.timer = 0;
 
-                    this.runningStartFrames = !!(newAnimation && newAnimation.startFrames);
+                this.runningStartFrames = !!(newAnimation && newAnimation.startFrames);
 
-                    this.current = newAnimation;
+                this.current = newAnimation;
 
-                    if (this.current && this.enabled) {
-                        if (this.runningStartFrames) {
-                            this.sprite.setImage((this.current.startFrames[0]))
-                        }
-                        else {
-                            this.sprite.setImage((this.current.loopFrames[0]))
-                        }
+                if (this.current && this.enabled) {
+                    if (this.runningStartFrames) {
+                        this.sprite.setImage((this.current.startFrames[0]))
+                    }
+                    else {
+                        this.sprite.setImage((this.current.loopFrames[0]))
                     }
                 }
+            }
 
-                if (!this.current || !this.enabled) return;
+            if (!this.current || !this.enabled) return;
 
-                this.timer += dt;
+            this.timer += dt;
 
-                if (this.runningStartFrames) {
-                    while (this.timer >= this.current.startInterval && this.runningStartFrames) {
-                        this.timer -= this.current.startInterval;
-                        this.frame++;
+            if (this.runningStartFrames) {
+                while (this.timer >= this.current.startInterval && this.runningStartFrames) {
+                    this.timer -= this.current.startInterval;
+                    this.frame++;
 
-                        if (this.frame >= this.current.startFrames.length) {
-                            this.runningStartFrames = false;
-                            if (this.current.loopFrames) {
-                                this.sprite.setImage(this.current.loopFrames[0]);
-                                this.timer = 0;
-                                this.frame = 0;
-                            }
+                    if (this.frame >= this.current.startFrames.length) {
+                        this.runningStartFrames = false;
+                        if (this.current.loopFrames) {
+                            this.sprite.setImage(this.current.loopFrames[0]);
+                            this.timer = 0;
+                            this.frame = 0;
                         }
-                        else {
-                            this.sprite.setImage(this.current.startFrames[this.frame])
-                        }
+                    }
+                    else {
+                        this.sprite.setImage(this.current.startFrames[this.frame])
                     }
                 }
-                else if (this.current.loopFrames) {
-                    while (this.timer >= this.current.loopInterval) {
-                        this.timer -= this.current.loopInterval;
-                        this.frame = (this.frame + 1) % this.current.loopFrames.length;
+            }
+            else if (this.current.loopFrames) {
+                while (this.timer >= this.current.loopInterval) {
+                    this.timer -= this.current.loopInterval;
+                    this.frame = (this.frame + 1) % this.current.loopFrames.length;
 
-                        this.sprite.setImage(this.current.loopFrames[this.frame])
-                    }
+                    this.sprite.setImage(this.current.loopFrames[this.frame])
                 }
             }
         }
@@ -562,35 +443,6 @@ namespace animations {
 
         setActionButton(button: ActionButton) {
             this.actionButton = button;
-        }
-
-        setOverlapTarget(target: Sprite) {
-            this.overlapTarget = target;
-            if (!target) {
-                this.lastOverlap = false;
-            }
-        }
-
-        addAttackStartHandler(handler: (s: Sprite) => void) {
-            this.attackStartHandlers.push(handler);
-        }
-
-        addAttackEndHandler(handler: (s: Sprite) => void) {
-            this.attackEndHandlers.push(handler);
-        }
-
-        addHitHandler(handler: (s: Sprite, other: Sprite) => void) {
-            this.hitHandlers.push(handler);
-        }
-
-        isAttacking() {
-            return this.attackActive;
-        }
-
-        attackTimeRemaining() {
-            if (!this.attackActive) return 0;
-            if (this.attackRemaining === -1) return 0;
-            return this.attackRemaining;
         }
 
         setManualFlags(flags: Rule) {
@@ -755,12 +607,6 @@ namespace animations {
         if (rule & Predicate.ActionJust) {
             out += "action-button-just "
         }
-        if (rule & Predicate.Attacking) {
-            out += "attacking "
-        }
-        if (rule & Predicate.HittingSprite) {
-            out += "hitting-sprite "
-        }
 
         return out.trim();
     }
@@ -829,127 +675,6 @@ namespace animations {
 
         const state = getStateForSprite(sprite, true);
         state.setStartFrames(frames, frameInterval, rule);
-    }
-
-    /**
-     * Plays the passed frames on top of any rule animation. While the attack
-     * is playing, the "attacking" predicate is true for the sprite, and when
-     * the attack finishes the best matching rule animation resumes
-     * automatically (movement animations are never disabled).
-     *
-     * If no duration is given, the attack lasts exactly one pass through the
-     * frames. If a duration is given, the frames loop until the duration
-     * elapses.
-     *
-     *
-     * @param sprite    the sprite to animate
-     * @param frames    the images that make up the attack animation
-     * @param interval  the amount of time to spend on each frame in milliseconds
-     * @param duration  how long the attack lasts in milliseconds (0 or omitted = one pass)
-     */
-    //% blockId=animations_run_attack
-    //% block="$sprite run attack frames $frames every $interval ms||for $duration ms"
-    //% sprite.defl=mySprite
-    //% sprite.shadow=variables_get
-    //% frames.shadow=animation_editor
-    //% interval.shadow=timePicker
-    //% duration.shadow=timePicker
-    //% weight=95
-    //% blockGap=8
-    //% group="Attacks"
-    //% help=github:pxt-advanced-animations/docs/run-attack
-    export function runAttack(sprite: Sprite, frames: Image[], interval: number, duration?: number) {
-        init();
-        if (!sprite || !frames || !frames.length) return;
-
-        const state = getStateForSprite(sprite, true);
-        state.startAttack(frames, interval, duration);
-    }
-
-    /**
-     * Checks whether an attack started with the run attack block is currently
-     * playing on the sprite.
-     *
-     *
-     * @param sprite    the sprite to check
-     */
-    //% blockId=animations_is_attacking
-    //% block="$sprite is attacking"
-    //% sprite.defl=mySprite
-    //% sprite.shadow=variables_get
-    //% weight=75
-    //% group="Attacks"
-    //% help=github:pxt-advanced-animations/docs/is-attacking
-    export function isAttacking(sprite: Sprite): boolean {
-        const state = getStateForSprite(sprite, false);
-        if (!state) return false;
-        return state.isAttacking();
-    }
-
-    /**
-     * Returns the milliseconds left on the current attack, or 0 if the sprite
-     * is not attacking or the attack lasts a single pass through the frames.
-     *
-     *
-     * @param sprite    the sprite to check
-     */
-    //% blockId=animations_attack_time_remaining
-    //% block="attack time remaining on $sprite"
-    //% sprite.defl=mySprite
-    //% sprite.shadow=variables_get
-    //% weight=74
-    //% group="Attacks"
-    //% help=github:pxt-advanced-animations/docs/attack-time-remaining
-    export function attackTimeRemaining(sprite: Sprite): number {
-        const state = getStateForSprite(sprite, false);
-        if (!state) return 0;
-        return state.attackTimeRemaining();
-    }
-
-    /**
-     * Registers a handler that runs when an attack starts on the sprite.
-     *
-     *
-     * @param sprite    the sprite to watch
-     * @param handler   the code to run when the attack starts
-     */
-    //% blockId=animations_on_attack_start
-    //% block="on $sprite attack start"
-    //% sprite.defl=mySprite
-    //% sprite.shadow=variables_get
-    //% draggableParameters="reporter"
-    //% weight=73
-    //% blockGap=8
-    //% group="Events"
-    //% help=github:pxt-advanced-animations/docs/on-attack-start
-    export function onAttackStart(sprite: Sprite, handler: (s: Sprite) => void) {
-        if (!sprite || !handler) return;
-        const state = getStateForSprite(sprite, true);
-        state.addAttackStartHandler(handler);
-    }
-
-    /**
-     * Registers a handler that runs when the current attack finishes on the
-     * sprite. This fires both when a timed attack elapses and when a single
-     * pass through the frames completes.
-     *
-     *
-     * @param sprite    the sprite to watch
-     * @param handler   the code to run when the attack ends
-     */
-    //% blockId=animations_on_attack_end
-    //% block="on $sprite attack end"
-    //% sprite.defl=mySprite
-    //% sprite.shadow=variables_get
-    //% draggableParameters="reporter"
-    //% weight=72
-    //% blockGap=8
-    //% group="Events"
-    //% help=github:pxt-advanced-animations/docs/on-attack-end
-    export function onAttackEnd(sprite: Sprite, handler: (s: Sprite) => void) {
-        if (!sprite || !handler) return;
-        const state = getStateForSprite(sprite, true);
-        state.addAttackEndHandler(handler);
     }
 
     /**
@@ -1049,7 +774,7 @@ namespace animations {
      * Invalid states (i.e. "moving" and "not moving") are ignored.
      *
      * Note: a manual state completely replaces the automatic state
-     * (including button and attacking predicates) until it is cleared.
+     * (including button predicates) until it is cleared.
      *
      *
      * @param sprite    The sprite to set the state of
@@ -1185,53 +910,6 @@ namespace animations {
     export function setActionButton(sprite: Sprite, button: ActionButton) {
         const state = getStateForSprite(sprite, true);
         state.setActionButton(button);
-    }
-
-    /**
-     * Enables the "hitting a sprite" predicate for this sprite while it
-     * overlaps the target. A rising-edge event is also fired for the
-     * "on hit" block each time the overlap begins. Pass no target to stop
-     * detecting collisions.
-     *
-     *
-     * @param sprite  The sprite to track collisions for
-     * @param target  The sprite this sprite should be checked against
-     */
-    //% blockId=animations_set_overlap_target
-    //% block="$sprite detect collisions with $target"
-    //% sprite.defl=mySprite
-    //% sprite.shadow=variables_get
-    //% target.shadow=variables_get
-    //% weight=41
-    //% blockGap=8
-    //% group="Collisions"
-    //% help=github:pxt-advanced-animations/docs/set-overlap-target
-    export function setOverlapTarget(sprite: Sprite, target?: Sprite) {
-        const state = getStateForSprite(sprite, true);
-        state.setOverlapTarget(target);
-    }
-
-    /**
-     * Registers a handler that runs each time the sprite starts overlapping
-     * the collision target configured with the "detect collisions with" block.
-     *
-     *
-     * @param sprite    The sprite to watch
-     * @param handler   The code to run on collision; receives the target sprite
-     */
-    //% blockId=animations_on_hit
-    //% block="on $sprite hit"
-    //% sprite.defl=mySprite
-    //% sprite.shadow=variables_get
-    //% draggableParameters="reporter"
-    //% weight=40
-    //% blockGap=8
-    //% group="Collisions"
-    //% help=github:pxt-advanced-animations/docs/on-hit
-    export function onHit(sprite: Sprite, handler: (s: Sprite, other: Sprite) => void) {
-        if (!sprite || !handler) return;
-        const state = getStateForSprite(sprite, true);
-        state.addHitHandler(handler);
     }
 
     /**

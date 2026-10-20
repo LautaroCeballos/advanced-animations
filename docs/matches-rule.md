@@ -11,4 +11,4 @@ Be careful: sprites will only be facing a direction if they have an animation th
 
 ## Example
 
-`if mySprite is attacking then ...`
+`if mySprite is button A pressed then ...`

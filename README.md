@@ -1,6 +1,6 @@
 # pxt-advanced-animations
 
-A MakeCode Arcade extension for creating rules that control when animations run on a sprite. It is a superset of [arcade-character-animations](https://github.com/microsoft/arcade-character-animations): all of the original movement rules work unchanged, and it adds button, attack, and collision predicates plus event blocks so you can play attack animations without disabling movement animations.
+A MakeCode Arcade extension for creating rules that control when animations run on a sprite. It is a superset of [arcade-character-animations](https://github.com/microsoft/arcade-character-animations): all of the original movement rules work unchanged, and it adds button and action button predicates so you can trigger attack or action animations without disabling movement animations.
 
 Do not install this extension together with `arcade-character-animations` in the same project — use this one instead.
 
@@ -18,27 +18,24 @@ If we wanted to add jumping to our sprite, we could create two more rules:
 
 The most specific rule (the one with the most predicates) always overrides the others, so the running rules win over the jumping rules while the sprite is on the ground.
 
-## Attack predicates and triggers
+## Button predicates
 
-Unlike the original extension, attacks do not require disabling animations or replacing the sprite state. New predicates are **added** to the sprite's automatic state every frame, so "moving", "facing", and "hitting wall" predicates keep working during an attack:
+Unlike the original extension, button predicates are **added** to the sprite's automatic state every frame, so "moving", "facing", and "hitting wall" predicates keep working while a button is held:
 
 - `button A pressed` / `button B pressed` — held checks
 - `button A just pressed` / `button B just pressed` — true for exactly one frame, great for starting an animation with "run frames"
 - `action button pressed` / `action button just pressed` — uses the button you pick with the "use action button" block (A, B, or any direction)
-- `attacking` — true while an attack started with the attack trigger is playing
-- `hitting a sprite` — true while overlapping the target set with "detect collisions with"
 
-### Rule-based attacks
+### Example: attack animations with A
 
-Register an attack animation that wins over the walk cycle by being more specific:
+Use `run frames` (plays once, then returns to the matching loop animation) with a rule that combines a direction and the button:
 
-- Walk attack right: "moving" + "facing right" + "attacking" (3 predicates) beats "moving" + "facing right" (2 predicates)
+- Attack right: "button A pressed" + "moving right"
+- Attack left: "button A pressed" + "moving left"
+- Attack down: "button A pressed" + "moving down"
+- Attack while standing: "button A pressed" + "not moving"
 
-### Trigger-based attacks
-
-The "run attack frames" block plays frames on top of the rule system for a duration (or one pass if no duration is given). When it finishes, the best matching rule animation resumes automatically. While the attack plays, the "attacking" predicate is true, and "on attack start" / "on attack end" / "is attacking" / "attack time remaining" blocks reflect it.
-
-Rules with an equally specific score keep the currently executing animation, so always give your attack rule more predicates than the movement rule it should override.
+Because the rule engine picks the most specific rule, the attack rules take over only while A is held; when released, the walk or idle animation resumes automatically.
 
 ## Supported targets
 
