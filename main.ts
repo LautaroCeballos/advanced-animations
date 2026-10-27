@@ -166,6 +166,14 @@ namespace animations {
         protected forcedFrame: number;
         protected forcedRunning: boolean;
 
+        protected triggers: Array<{
+            frames: Image[],
+            interval: number,
+            rule: Rule,
+            loop: boolean,
+            lastMatch: boolean
+        }> = [];
+
         constructor(public sprite: Sprite) {
             this.animations = [];
             this.timer = 0;
@@ -187,7 +195,7 @@ namespace animations {
             this.forcedTimer = 0;
             this.forcedFrame = 0;
             this.forcedRunning = false;
-        }
+            this.triggers = [];
 
         setFrames(loop: boolean, frames: Image[], interval: number, rule: Rule) {
             this.possibleFacingDirections |= (rule & FACING);
@@ -262,6 +270,116 @@ namespace animations {
         }
 
         update(dt: number) {
+            if (this.enabled && !this.forcedAnimation && this.triggers && this.triggers.length) {
+                let state = 0;
+
+                if (this.sprite.vx | this.sprite.vy) {
+                    state |= Predicate.Moving;
+
+                    if (this.sprite.vx > 0) {
+                        state |= (Predicate.FacingRight & this.possibleFacingDirections) | Predicate.MovingRight;
+                    }
+                    else if (this.sprite.vx < 0) {
+                        state |= (Predicate.FacingLeft & this.possibleFacingDirections) | Predicate.MovingLeft;
+                    }
+
+                    if (this.sprite.vy > 0) {
+                        state |= (Predicate.FacingDown & this.possibleFacingDirections) | Predicate.MovingDown;
+                    }
+                    else if (this.sprite.vy < 0) {
+                        state |= (Predicate.FacingUp & this.possibleFacingDirections) | Predicate.MovingUp;
+                    }
+
+                    if (!(state & FACING)) {
+                        state |= (this.lastState & FACING);
+                    }
+                }
+                else if (this.sprite.x != this.lastX || this.sprite.y != this.lastY && (this.lastX != undefined && this.lastY != undefined)) {
+                    state |= Predicate.Moving;
+
+                    if (this.sprite.x > this.lastX) {
+                        state |= (Predicate.FacingRight & this.possibleFacingDirections) | Predicate.MovingRight;
+                    }
+                    else if (this.sprite.x < this.lastX) {
+                        state |= (Predicate.FacingLeft & this.possibleFacingDirections) | Predicate.MovingLeft;
+                    }
+
+                    if (this.sprite.y > this.lastY) {
+                        state |= (Predicate.FacingDown & this.possibleFacingDirections) | Predicate.MovingDown;
+                    }
+                    else if (this.sprite.y < this.lastY) {
+                        state |= (Predicate.FacingUp & this.possibleFacingDirections) | Predicate.MovingUp;
+                    }
+
+                    if (!(state & FACING)) {
+                        state |= (this.lastState & FACING);
+                    }
+                }
+                else {
+                    state |= Predicate.NotMoving;
+                    state |= (this.lastState & FACING);
+                }
+
+                if (this.sprite.isHittingTile(CollisionDirection.Bottom)) {
+                    state |= Predicate.HittingWallDown;
+                }
+                if (this.sprite.isHittingTile(CollisionDirection.Top)) {
+                    state |= Predicate.HittingWallUp;
+                }
+                if (this.sprite.isHittingTile(CollisionDirection.Right)) {
+                    state |= Predicate.HittingWallRight;
+                }
+                if (this.sprite.isHittingTile(CollisionDirection.Left)) {
+                    state |= Predicate.HittingWallLeft;
+                }
+
+                state |= this.updateButtons();
+
+                if (this.lockedFacingDirection) {
+                    state = (state & ~FACING) | this.lockedFacingDirection;
+                }
+                else if (this.controller) {
+                    let facing = 0;
+                    if (this.controller.up.isPressed() && Predicate.FacingUp & this.possibleFacingDirections) {
+                        facing |= Predicate.FacingUp;
+                    }
+                    else if (this.controller.down.isPressed() && Predicate.FacingDown & this.possibleFacingDirections) {
+                        facing |= Predicate.FacingDown;
+                    }
+
+                    if (this.controller.left.isPressed() && Predicate.FacingLeft & this.possibleFacingDirections) {
+                        facing |= Predicate.FacingLeft;
+                    }
+                    else if (this.controller.right.isPressed() && Predicate.FacingRight & this.possibleFacingDirections) {
+                        facing |= Predicate.FacingRight;
+                    }
+
+                    state &= ~FACING;
+
+                    if (facing) {
+                        state |= facing;
+                    }
+                    else if (this.lastState & FACING) {
+                        state |= (this.lastState & FACING);
+                    }
+                }
+
+                const currentState = this.manualFlags || state;
+
+                for (const t of this.triggers) {
+                    const matches = !((currentState & t.rule) ^ t.rule);
+                    if (matches && !t.lastMatch) {
+                        t.lastMatch = true;
+                        if (!this.forcedAnimation) {
+                            this.playForcedAnimation(t.frames, t.interval, t.loop);
+                        }
+                        break;
+                    } else if (!matches) {
+                        t.lastMatch = false;
+                    }
+                }
+            }
+
             if (this.forcedAnimation && this.enabled) {
                 this.forcedTimer += dt;
 
@@ -488,6 +606,19 @@ namespace animations {
             this.forcedAnimation = new CharacterAnimation(0);
 
             this.sprite.setImage(this.forcedFrames[0]);
+        }
+
+        addTrigger(frames: Image[], interval: number, rule: Rule, loop: boolean) {
+            if (!frames || !frames.length || !rule) return;
+            if (Number.isNaN(interval) || interval < 5) interval = 5;
+            if (!this.triggers) this.triggers = [];
+            this.triggers.push({
+                frames: frames,
+                interval: interval,
+                rule: rule,
+                loop: loop,
+                lastMatch: false
+            });
         }
 
         matchesRule(rule: Rule) {
@@ -900,7 +1031,7 @@ namespace animations {
      * @param loop          True to loop the animation, false to play once
      */
     //% blockId=animations_play_animation
-    //% block="$sprite play animation $frames $frameInterval||loop $loop"
+    //% block="$sprite reproducir animación $frames $frameInterval||repetir $loop"
     //% sprite.defl=mySprite
     //% sprite.shadow=variables_get
     //% frames.shadow=animation_editor
@@ -915,6 +1046,36 @@ namespace animations {
 
         const state = getStateForSprite(sprite, true);
         state.playForcedAnimation(frames, frameInterval, loop);
+    }
+
+    /**
+     * Plays an animation with priority when the specified rule becomes true
+     * (e.g. when pressing a button, or when moving in a direction). The animation
+     * takes priority over rule-based animations while playing.
+     *
+     * @param sprite        The sprite to animate
+     * @param frames        The images that make up the animation
+     * @param frameInterval The amount of time to spend on each frame in milliseconds
+     * @param rule          The rule that triggers the animation
+     * @param loop          True to loop the animation, false to play once
+     */
+    //% blockId=animations_play_on_rule
+    //% block="$sprite reproducir animación $frames $frameInterval cuando $rule se active||repetir $loop"
+    //% sprite.defl=mySprite
+    //% sprite.shadow=variables_get
+    //% frames.shadow=animation_editor
+    //% frameInterval.shadow=timePicker
+    //% rule.shadow=animations_make_rule
+    //% loop.defl=false
+    //% weight=48
+    //% blockGap=8
+    export function playAnimationOnRule(sprite: Sprite, frames: Image[], frameInterval: number, rule: Rule, loop: boolean = false) {
+        init();
+        if (!sprite || !frames || !frames.length || !rule) return;
+        if (Number.isNaN(frameInterval) || frameInterval < 5) frameInterval = 5;
+
+        const state = getStateForSprite(sprite, true);
+        state.addTrigger(frames, frameInterval, rule, loop);
     }
 
     /**
