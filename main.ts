@@ -196,6 +196,7 @@ namespace animations {
             this.forcedFrame = 0;
             this.forcedRunning = false;
             this.triggers = [];
+        }
 
         setFrames(loop: boolean, frames: Image[], interval: number, rule: Rule) {
             this.possibleFacingDirections |= (rule & FACING);
