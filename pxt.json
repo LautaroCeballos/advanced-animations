@@ -1,6 +1,6 @@
 {
     "name": "pxt-advanced-animations",
-    "version": "0.2.7"
+    "version": "0.2.9",
     "description": "Character animation rules extended with button predicates and a configurable action button",
     "dependencies": {
         "device": "*"
