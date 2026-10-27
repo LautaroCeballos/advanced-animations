@@ -1,0 +1,33 @@
+{
+    "name": "pxt-advanced-animations",
+    "version": "0.1.9",
+    "description": "Character animation rules extended with button predicates and a configurable action button",
+    "dependencies": {
+        "device": "*"
+    },
+    "files": [
+        "main.ts",
+        "README.md",
+        "docs/loop-character-animation.md",
+        "docs/run-character-animation.md",
+        "docs/matches-rule.md",
+        "docs/set-character-animations-enabled.md",
+        "docs/set-character-state.md",
+        "docs/clear-character-state.md",
+        "docs/set-controller.md",
+        "docs/lock-facing-direction.md",
+        "docs/unlock-facing-direction.md",
+        "docs/facing-direction.md",
+        "docs/predicate.md",
+        "docs/rule.md",
+        "docs/set-action-button.md"
+    ],
+    "targetVersions": {
+        "target": "1.4.44",
+        "targetId": "arcade"
+    },
+    "supportedTargets": [
+        "arcade"
+    ],
+    "preferredEditor": "tsprj"
+}
