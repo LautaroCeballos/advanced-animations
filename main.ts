@@ -902,7 +902,7 @@ namespace animations {
      * @param loop          True to loop the animation, false to play once
      */
     //% blockId=animations_play_animation
-    //% block="$sprite reproducir animación $frames $frameInterval||cuando $rule||repetir $loop"
+    //% block="$sprite activar animación con fotogramas $frames intervalo $frameInterval||solo si además $rule||repetir $loop"
     //% sprite.defl=mySprite
     //% sprite.shadow=variables_get
     //% frames.shadow=animation_editor
