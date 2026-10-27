@@ -11,45 +11,45 @@
  * are additions for button and action button predicates.
  */
 enum Predicate {
-    //% block="not moving"
+    //% block="sin moverse"
     NotMoving = 1,
-    //% block="moving"
+    //% block="moviéndose"
     Moving = 1 << 1,
-    //% block="facing up"
+    //% block="mirando hacia arriba"
     FacingUp = 1 << 2,
-    //% block="facing right"
+    //% block="mirando hacia la derecha"
     FacingRight = 1 << 3,
-    //% block="facing down"
+    //% block="mirando hacia abajo"
     FacingDown = 1 << 4,
-    //% block="facing left"
+    //% block="mirando hacia la izquierda"
     FacingLeft = 1 << 5,
-    //% block="moving up"
+    //% block="moviéndose hacia arriba"
     MovingUp = 1 << 6,
-    //% block="moving right"
+    //% block="moviéndose hacia la derecha"
     MovingRight = 1 << 7,
-    //% block="moving down"
+    //% block="moviéndose hacia abajo"
     MovingDown = 1 << 8,
-    //% block="moving left"
+    //% block="moviéndose hacia la izquierda"
     MovingLeft = 1 << 9,
-    //% block="hitting wall up"
+    //% block="chocando con pared arriba"
     HittingWallUp = 1 << 10,
-    //% block="hitting wall right"
+    //% block="chocando con pared derecha"
     HittingWallRight = 1 << 11,
-    //% block="hitting wall down"
+    //% block="chocando con pared abajo"
     HittingWallDown = 1 << 12,
-    //% block="hitting wall left"
+    //% block="chocando con pared izquierda"
     HittingWallLeft = 1 << 13,
-    //% block="button A pressed"
+    //% block="botón A presionado"
     ButtonA = 1 << 14,
-    //% block="button B pressed"
+    //% block="botón B presionado"
     ButtonB = 1 << 15,
-    //% block="button A just pressed"
+    //% block="botón A recién presionado"
     ButtonAJust = 1 << 16,
-    //% block="button B just pressed"
+    //% block="botón B recién presionado"
     ButtonBJust = 1 << 17,
-    //% block="action button pressed"
+    //% block="botón de acción presionado"
     Action = 1 << 18,
-    //% block="action button just pressed"
+    //% block="botón de acción recién presionado"
     ActionJust = 1 << 19,
 }
 
@@ -58,16 +58,16 @@ namespace animations {
     export type Rule = number;
 
     export enum FacingDirection {
-        //% block="up"
+        //% block="arriba"
         //% blockIdentity="animations._direction"
         Up = Predicate.FacingUp,
-        //% block="right"
+        //% block="derecha"
         //% blockIdentity="animations._direction"
         Right = Predicate.FacingRight,
-        //% block="down"
+        //% block="abajo"
         //% blockIdentity="animations._direction"
         Down = Predicate.FacingDown,
-        //% block="left"
+        //% block="izquierda"
         //% blockIdentity="animations._direction"
         Left = Predicate.FacingLeft,
     }
@@ -82,16 +82,16 @@ namespace animations {
         //% block="B"
         //% blockIdentity="animations._actionButton"
         B = 2,
-        //% block="up"
+        //% block="arriba"
         //% blockIdentity="animations._actionButton"
         Up = 3,
-        //% block="down"
+        //% block="abajo"
         //% blockIdentity="animations._actionButton"
         Down = 4,
-        //% block="left"
+        //% block="izquierda"
         //% blockIdentity="animations._actionButton"
         Left = 5,
-        //% block="right"
+        //% block="derecha"
         //% blockIdentity="animations._actionButton"
         Right = 6,
     }
@@ -158,6 +158,14 @@ namespace animations {
         protected prevB: boolean;
         protected prevAction: boolean;
 
+        protected forcedAnimation: CharacterAnimation;
+        protected forcedFrames: Image[];
+        protected forcedInterval: number;
+        protected forcedLoop: boolean;
+        protected forcedTimer: number;
+        protected forcedFrame: number;
+        protected forcedRunning: boolean;
+
         constructor(public sprite: Sprite) {
             this.animations = [];
             this.timer = 0;
@@ -172,6 +180,13 @@ namespace animations {
             this.prevA = false;
             this.prevB = false;
             this.prevAction = false;
+            this.forcedAnimation = null;
+            this.forcedFrames = null;
+            this.forcedInterval = 0;
+            this.forcedLoop = false;
+            this.forcedTimer = 0;
+            this.forcedFrame = 0;
+            this.forcedRunning = false;
         }
 
         setFrames(loop: boolean, frames: Image[], interval: number, rule: Rule) {
@@ -247,6 +262,55 @@ namespace animations {
         }
 
         update(dt: number) {
+            if (this.forcedAnimation && this.enabled) {
+                this.forcedTimer += dt;
+
+                if (this.forcedRunning) {
+                    while (this.forcedTimer >= this.forcedInterval && this.forcedRunning && this.forcedFrames) {
+                        this.forcedTimer -= this.forcedInterval;
+                        this.forcedFrame++;
+
+                        if (this.forcedFrame >= this.forcedFrames.length) {
+                            if (this.forcedLoop && this.current && this.current.loopFrames) {
+                                this.forcedAnimation = null;
+                                this.forcedFrames = null;
+                                this.forcedRunning = false;
+                            } else if (this.current) {
+                                this.forcedAnimation = null;
+                                this.forcedFrames = null;
+                                this.forcedRunning = false;
+                                this.frame = 0;
+                                this.timer = 0;
+                                this.runningStartFrames = !!(this.current.startFrames);
+                                if (this.enabled) {
+                                    if (this.runningStartFrames) {
+                                        this.sprite.setImage(this.current.startFrames[0]);
+                                    } else if (this.current.loopFrames) {
+                                        this.sprite.setImage(this.current.loopFrames[0]);
+                                    }
+                                }
+                            } else {
+                                this.forcedAnimation = null;
+                                this.forcedFrames = null;
+                                this.forcedRunning = false;
+                            }
+                        } else {
+                            this.sprite.setImage(this.forcedFrames[this.forcedFrame]);
+                        }
+                    }
+                } else if (this.forcedLoop && this.forcedFrames) {
+                    while (this.forcedTimer >= this.forcedInterval) {
+                        this.forcedTimer -= this.forcedInterval;
+                        this.forcedFrame = (this.forcedFrame + 1) % this.forcedFrames.length;
+                        this.sprite.setImage(this.forcedFrames[this.forcedFrame]);
+                    }
+                }
+
+                this.lastX = this.sprite.x;
+                this.lastY = this.sprite.y;
+                return;
+            }
+
             let state = 0;
 
             if (this.sprite.vx | this.sprite.vy) {
@@ -409,6 +473,21 @@ namespace animations {
                     this.sprite.setImage(this.current.loopFrames[this.frame])
                 }
             }
+        }
+
+        playForcedAnimation(frames: Image[], interval: number, loop: boolean) {
+            if (!this.enabled || !frames || !frames.length) return;
+            if (Number.isNaN(interval) || interval < 5) interval = 5;
+
+            this.forcedFrames = frames;
+            this.forcedInterval = interval;
+            this.forcedLoop = loop;
+            this.forcedTimer = 0;
+            this.forcedFrame = 0;
+            this.forcedRunning = !loop;
+            this.forcedAnimation = new CharacterAnimation(0);
+
+            this.sprite.setImage(this.forcedFrames[0]);
         }
 
         matchesRule(rule: Rule) {
@@ -626,7 +705,7 @@ namespace animations {
      * @param rule      the rule that decides when this animation will play
      */
     //% blockId=animations_loop_frames
-    //% block="$sprite loop frames $frames $frameInterval when $rule"
+    //% block="$sprite repetir animación $frames $frameInterval cuando $rule"
     //% sprite.defl=mySprite
     //% sprite.shadow=variables_get
     //% frames.shadow=animation_editor
@@ -660,7 +739,7 @@ namespace animations {
      * @param rule      the rule that decides when this animation will play
      */
     //% blockId=animations_run_frames
-    //% block="$sprite run frames $frames $frameInterval when $rule becomes true"
+    //% block="$sprite ejecutar animación $frames $frameInterval cuando $rule se vuelva true"
     //% sprite.defl=mySprite
     //% sprite.shadow=variables_get
     //% frames.shadow=animation_editor
@@ -687,7 +766,7 @@ namespace animations {
      * @param rule      The rule to check
      */
     //% blockId=animations_is_facing
-    //% block="$sprite is $rule"
+    //% block="$sprite es $rule"
     //% sprite.defl=mySprite
     //% sprite.shadow=variables_get
     //% rule.shadow=animations_make_rule
@@ -755,7 +834,7 @@ namespace animations {
      * @param enabled   True to enable, false to disable
      */
     //% blockId=animations_set_enabled
-    //% block="$sprite enable character animations $enabled"
+    //% block="$sprite activar animaciones de personaje $enabled"
     //% sprite.defl=mySprite
     //% sprite.shadow=variables_get
     //% weight=70
@@ -781,7 +860,7 @@ namespace animations {
      * @param rule      The state to set on the sprite
      */
     //% blockId=animations_set_state
-    //% block="$sprite set state to $rule"
+    //% block="$sprite establecer estado a $rule"
     //% sprite.defl=mySprite
     //% sprite.shadow=variables_get
     //% rule.shadow=animations_make_rule
@@ -801,7 +880,7 @@ namespace animations {
      * @param sprite    The sprite to clear the state of
      */
     //% blockId=animations_clear_state
-    //% block="$sprite clear state"
+    //% block="$sprite limpiar estado"
     //% sprite.defl=mySprite
     //% sprite.shadow=variables_get
     //% weight=50
@@ -809,6 +888,33 @@ namespace animations {
     export function clearCharacterState(sprite: Sprite) {
         const state = getStateForSprite(sprite, false);
         if (state) state.clearState();
+    }
+
+    /**
+     * Plays an animation immediately on the sprite, taking priority
+     * over rule-based animations. Can be used in events like "on button pressed".
+     *
+     * @param sprite        The sprite to animate
+     * @param frames        The images that make up the animation
+     * @param frameInterval The amount of time to spend on each frame in milliseconds
+     * @param loop          True to loop the animation, false to play once
+     */
+    //% blockId=animations_play_animation
+    //% block="$sprite play animation $frames $frameInterval||loop $loop"
+    //% sprite.defl=mySprite
+    //% sprite.shadow=variables_get
+    //% frames.shadow=animation_editor
+    //% frameInterval.shadow=timePicker
+    //% loop.defl=false
+    //% weight=49
+    //% blockGap=8
+    export function playAnimation(sprite: Sprite, frames: Image[], frameInterval: number, loop: boolean = false) {
+        init();
+        if (!sprite || !frames || !frames.length) return;
+        if (Number.isNaN(frameInterval) || frameInterval < 5) frameInterval = 5;
+
+        const state = getStateForSprite(sprite, true);
+        state.playForcedAnimation(frames, frameInterval, loop);
     }
 
     /**
@@ -823,12 +929,12 @@ namespace animations {
      * @param controlledBy The controller that controls this sprite. If not specified, player 1 controller is used.
      */
     //% blockId=animations_set_controller
-    //% block="$sprite control facing direction with buttons $enabled||$controlledBy"
+    //% block="$sprite controlar dirección con botones $enabled||$controlledBy"
     //% sprite.defl=mySprite
     //% sprite.shadow=variables_get
     //% weight=48
     //% blockGap=8
-    //% group="Facing"
+    //% group="Dirección"
     //% help=github:pxt-advanced-animations/docs/set-controller
     export function setController(sprite: Sprite, enabled: boolean, controlledBy?: controller.Controller) {
         if (enabled) {
@@ -853,13 +959,13 @@ namespace animations {
      * @param direction The direction to lock the sprite's facing direction to
      */
     //% blockId=animations_lock_facing_direction
-    //% block="$sprite lock facing direction to $direction"
+    //% block="$sprite fijar dirección a $direction"
     //% sprite.defl=mySprite
     //% sprite.shadow=variables_get
     //% direction.shadow=animations_facing_direction
     //% weight=45
     //% blockGap=8
-    //% group="Facing"
+    //% group="Dirección"
     //% help=github:pxt-advanced-animations/docs/lock-facing-direction
     export function lockFacingDirection(sprite: Sprite, direction: number) {
         const state = getStateForSprite(sprite, true);
@@ -875,12 +981,12 @@ namespace animations {
      * @param sprite The sprite to unlock the facing direction for
      */
     //% blockId=animations_unlock_facing_direction
-    //% block="$sprite unlock facing direction"
+    //% block="$sprite liberar dirección"
     //% sprite.defl=mySprite
     //% sprite.shadow=variables_get
     //% weight=44
     //% blockGap=8
-    //% group="Facing"
+    //% group="Dirección"
     //% help=github:pxt-advanced-animations/docs/unlock-facing-direction
     export function unlockFacingDirection(sprite: Sprite) {
         const state = getStateForSprite(sprite, false);
@@ -899,13 +1005,13 @@ namespace animations {
      * @param button The button that acts as the sprite's action button
      */
     //% blockId=animations_set_action_button
-    //% block="$sprite use action button $button"
+    //% block="$sprite usar botón de acción $button"
     //% sprite.defl=mySprite
     //% sprite.shadow=variables_get
     //% button.shadow=animations_action_button
     //% weight=42
     //% blockGap=8
-    //% group="Buttons"
+    //% group="Botones"
     //% help=github:pxt-advanced-animations/docs/set-action-button
     export function setActionButton(sprite: Sprite, button: ActionButton) {
         const state = getStateForSprite(sprite, true);
@@ -918,7 +1024,7 @@ namespace animations {
      * rules (e.g. "moving left AND moving right") are ignored.
      */
     //% blockId=animations_make_rule
-    //% block="$p1||and $p2 and $p3 and $p4 and $p5 and $p6 and $p7"
+    //% block="$p1||y $p2 y $p3 y $p4 y $p5 y $p6 y $p7"
     //% inlineInputMode=inline
     //% p1.shadow=animations_predicate
     //% p2.shadow=animations_predicate
