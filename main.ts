@@ -898,23 +898,53 @@ namespace animations {
      * @param sprite        The sprite to animate
      * @param frames        The images that make up the animation
      * @param frameInterval The amount of time to spend on each frame in milliseconds
+     * @param rule          Additional states that must be true
      * @param loop          True to loop the animation, false to play once
      */
     //% blockId=animations_play_animation
-    //% block="$sprite reproducir animación $frames $frameInterval||repetir $loop"
+    //% block="$sprite reproducir animación $frames $frameInterval||cuando $rule||repetir $loop"
     //% sprite.defl=mySprite
     //% sprite.shadow=variables_get
     //% frames.shadow=animation_editor
     //% frameInterval.shadow=timePicker
+    //% rule.shadow=animations_make_rule
     //% loop.defl=false
     //% weight=49
     //% blockGap=8
-    export function playAnimation(sprite: Sprite, frames: Image[], frameInterval: number, loop: boolean = false) {
+    export function playAnimation(sprite: Sprite, frames: Image[], frameInterval: number, rule?: Rule, loop: boolean = false) {
         init();
         if (!sprite || !frames || !frames.length) return;
         if (Number.isNaN(frameInterval) || frameInterval < 5) frameInterval = 5;
 
         const state = getStateForSprite(sprite, true);
+        if (rule) {
+            const s = getStateForSprite(sprite, false);
+            if (s && !s.matchesRule(rule)) return;
+            if (!s) {
+                let st = 0;
+                if (sprite.vx | sprite.vy) {
+                    st |= Predicate.Moving;
+                    if (sprite.vx > 0) st |= Predicate.FacingRight | Predicate.MovingRight;
+                    else if (sprite.vx < 0) st |= Predicate.FacingLeft | Predicate.MovingLeft;
+                    if (sprite.vy > 0) st |= Predicate.FacingDown | Predicate.MovingDown;
+                    else if (sprite.vy < 0) st |= Predicate.FacingUp | Predicate.MovingUp;
+                } else {
+                    st |= Predicate.NotMoving;
+                }
+                if (sprite.isHittingTile(CollisionDirection.Bottom)) st |= Predicate.HittingWallDown;
+                if (sprite.isHittingTile(CollisionDirection.Top)) st |= Predicate.HittingWallUp;
+                if (sprite.isHittingTile(CollisionDirection.Right)) st |= Predicate.HittingWallRight;
+                if (sprite.isHittingTile(CollisionDirection.Left)) st |= Predicate.HittingWallLeft;
+                if (controller.player1.A.isPressed()) st |= Predicate.ButtonA;
+                if (controller.player1.B.isPressed()) st |= Predicate.ButtonB;
+                if (!((st & rule) ^ rule)) {
+                    state.playForcedAnimation(frames, frameInterval, loop);
+                    return;
+                } else {
+                    return;
+                }
+            }
+        }
         state.playForcedAnimation(frames, frameInterval, loop);
     }
 
