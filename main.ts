@@ -334,7 +334,8 @@ namespace animations {
                     state |= Predicate.HittingWallLeft;
                 }
 
-                state |= this.updateButtons();
+                const buttonFlags = this.updateButtons();
+                state |= buttonFlags;
 
                 if (this.lockedFacingDirection) {
                     state = (state & ~FACING) | this.lockedFacingDirection;
